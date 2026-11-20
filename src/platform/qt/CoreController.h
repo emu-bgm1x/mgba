@@ -12,6 +12,7 @@
 #include <QObject>
 #include <QSize>
 
+#include "BgmReplacer.h"
 #include "VFileDevice.h"
 
 #include <functional>
@@ -259,6 +260,11 @@ private:
 
 	std::unique_ptr<mCacheSet> m_cacheSet;
 	std::unique_ptr<Override> m_override;
+	std::unique_ptr<BgmReplacer> m_bgm;
+public:
+	BgmReplacer* bgmReplacer() { return m_bgm.get(); }  // ff-bgm1x: 소리 분류 창
+private:
+	bool m_bgmSpeedHold = false;  // ff-bgm1x: 연출 중이라 배속을 멈춘 상태
 
 	uint64_t m_frameCounter;
 	QList<std::function<void()>> m_resetActions;
