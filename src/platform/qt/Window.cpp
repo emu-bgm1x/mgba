@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "Window.h"
+#include "FfSoundCatalogDialog.h"
 
 #include <QKeyEvent>
 #include <QKeySequence>
@@ -797,6 +798,7 @@ void Window::hideEvent(QHideEvent* event) {
 }
 
 void Window::closeEvent(QCloseEvent* event) {
+	FfSoundCatalogDialog::closeIfOpen();  // ff-bgm1x: 소리 분류 창을 먼저 닫는다
 	emit shutdown();
 	m_config->setQtOption("windowPos", pos(), m_playerId > 0 ? QString("player%0").arg(m_playerId) : QString());
 	m_config->setQtOption("maximized", isMaximized());
@@ -1613,6 +1615,87 @@ void Window::setupMenu(QMenuBar* menubar) {
 		reloadConfig();
 	}, this);
 
+	// ff-bgm1x: 배속 중에도 BGM 을 1배속으로 재생 (기본값 켜짐)
+	if (m_config->getOption("bgmReplace").isNull()) {
+		m_config->setOption("bgmReplace", 1);
+	}
+	ConfigOption* bgmReplace = m_config->addOption("bgmReplace");
+	Action* bgmReplaceAction = bgmReplace->addBoolean(QString::fromUtf8("BGM 1배속 유지"), &m_actions, "av");
+	bgmReplaceAction->setActive(m_config->getOption("bgmReplace").toInt());
+	bgmReplace->connect([this](const QVariant&) {
+		reloadConfig();
+	}, this);
+
+	// ff-bgm1x: 연출(반복 없는 긴 곡)이 나오는 동안에도 배속할지 (기본값 꺼짐: 연출은 1배속)
+	if (m_config->getOption("bgmFfCutscenes").isNull()) {
+		m_config->setOption("bgmFfCutscenes", 0);
+	}
+	ConfigOption* bgmFfCutscenes = m_config->addOption("bgmFfCutscenes");
+	Action* bgmFfCutscenesAction = bgmFfCutscenes->addBoolean(QString::fromUtf8("연출 중에도 배속"), &m_actions, "av");
+	bgmFfCutscenesAction->setActive(m_config->getOption("bgmFfCutscenes").toInt());
+	bgmFfCutscenes->connect([this](const QVariant&) {
+		reloadConfig();
+	}, this);
+
+	// ff-bgm1x: GBA 게임의 효과음도 1배속으로 (기본값 켜짐)
+	if (m_config->getOption("bgmSfx1x").isNull()) {
+		m_config->setOption("bgmSfx1x", 1);
+	}
+	ConfigOption* bgmSfx1x = m_config->addOption("bgmSfx1x");
+	Action* bgmSfx1xAction = bgmSfx1x->addBoolean(QString::fromUtf8("효과음 1배속"), &m_actions, "av");
+	bgmSfx1xAction->setActive(m_config->getOption("bgmSfx1x").toInt());
+	bgmSfx1x->connect([this](const QVariant&) {
+		reloadConfig();
+	}, this);
+
+	// ff-bgm1x: GB/GBC 하드웨어 채널별 1배속 (기본값 모두 켜짐). 끈 채널은 원본 소리를 게임 속도로 낸다
+	{
+		static const char* const kChannelNames[4] = {"채널 1 (사각파)", "채널 2 (사각파)", "채널 3 (파형)", "채널 4 (노이즈)"};
+		static const char* const kKeys[4] = {"bgmGbCh1", "bgmGbCh2", "bgmGbCh3", "bgmGbCh4"};
+		for (int ch = 0; ch < 4; ++ch) {
+			const char* key = kKeys[ch];
+			if (m_config->getOption(key).isNull()) {
+				m_config->setOption(key, 1);
+			}
+			ConfigOption* opt = m_config->addOption(key);
+			Action* action = opt->addBoolean(QString::fromUtf8("GB 1배속: ") + QString::fromUtf8(kChannelNames[ch]), &m_actions, "av");
+			action->setActive(m_config->getOption(key).toInt());
+			opt->connect([this](const QVariant&) {
+				reloadConfig();
+			}, this);
+		}
+	}
+
+	// ff-bgm1x: RAM 곡 읽기 (기본값 꺼짐). 켜면 울음소리처럼 게임이 RAM 에 만든 곡도, 소리 분류 창에서
+	// 1배속으로 정했을 때 그 순간의 RAM 을 복사해 1배속으로 낸다
+	if (m_config->getOption("bgmRamSongs").isNull()) {
+		m_config->setOption("bgmRamSongs", 0);
+	}
+	ConfigOption* bgmRamSongs = m_config->addOption("bgmRamSongs");
+	Action* bgmRamSongsAction = bgmRamSongs->addBoolean(QString::fromUtf8("RAM 곡 읽기"), &m_actions, "av");
+	bgmRamSongsAction->setActive(m_config->getOption("bgmRamSongs").toInt());
+	bgmRamSongs->connect([this](const QVariant&) {
+		reloadConfig();
+	}, this);
+
+	// ff-bgm1x: 소리 분류 창 (단축키는 설정 > 단축키에서 직접 지정, 기본 없음)
+	m_actions.addAction(QString::fromUtf8("소리 분류..."), "ffbgmSoundCatalog", [this]() {
+		FfSoundCatalogDialog::Hooks hooks;
+		hooks.bgm = [this]() -> BgmReplacer* {
+			return m_controller ? m_controller->bgmReplacer() : nullptr;
+		};
+		hooks.isRunning = [this]() {
+			return m_controller && !m_controller->isPaused();
+		};
+		hooks.pause = [this]() {
+			if (m_controller) m_controller->setPaused(true);
+		};
+		hooks.resume = [this]() {
+			if (m_controller) m_controller->setPaused(false);
+		};
+		FfSoundCatalogDialog::open(this, std::move(hooks));
+	}, "av");
+
 	m_actions.addMenu(tr("FPS target"),"target", "av");
 	ConfigOption* fpsTargetOption = m_config->addOption("fpsTarget");
 	QMap<double, Action*> fpsTargets;
@@ -1833,6 +1916,16 @@ void Window::setupOptions() {
 
 	ConfigOption* volumeFf = m_config->addOption("fastForwardVolume");
 	volumeFf->connect([this](const QVariant&) {
+		reloadConfig();
+	}, this);
+
+	// ff-bgm1x: 효과음 볼륨
+	ConfigOption* sfxVolume = m_config->addOption("bgmSfxVolume");
+	sfxVolume->connect([this](const QVariant&) {
+		reloadConfig();
+	}, this);
+	ConfigOption* sfxMute = m_config->addOption("bgmSfxMute");
+	sfxMute->connect([this](const QVariant&) {
 		reloadConfig();
 	}, this);
 

@@ -208,6 +208,7 @@ struct GBAudio {
 
 	size_t samples;
 	bool forceDisableCh[4];
+	int ffbgmGainQ8[4];  // ff-bgm1x: 채널별 볼륨 배율 (256 = 그대로). 소리 분류 창의 원본 소리 볼륨
 	int masterVolume;
 };
 

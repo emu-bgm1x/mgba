@@ -27,6 +27,7 @@ protected:
 
 private:
 	mCoreThread* m_context;
+	int m_sampleRate = 48000;
 };
 
 }

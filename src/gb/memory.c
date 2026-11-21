@@ -335,6 +335,9 @@ uint8_t GBLoad8(struct SM83Core* cpu, uint16_t address) {
 void GBStore8(struct SM83Core* cpu, uint16_t address, int8_t value) {
 	struct GB* gb = (struct GB*) cpu->master;
 	struct GBMemory* memory = &gb->memory;
+	if (cpu->ffbgmStore) {
+		cpu->ffbgmStore(cpu, address, (uint8_t) value);
+	}
 	if (gb->memory.dmaRemaining) {
 		const enum GBBus* block = gb->model < GB_MODEL_CGB ? _oamBlockDMG : _oamBlockCGB;
 		enum GBBus dmaBus = block[memory->dmaSource >> 13];

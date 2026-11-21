@@ -90,8 +90,12 @@ static void _SM83InstructionIRQDelay(struct SM83Core* cpu) {
 	cpu->bus = cpu->pc;
 	cpu->executionState = SM83_CORE_MEMORY_STORE;
 	cpu->instruction = _SM83InstructionIRQFinish;
+	uint16_t returnPc = cpu->pc;
 	cpu->pc = cpu->irqh.irqVector(cpu);
 	cpu->memory.setActiveRegion(cpu, cpu->pc);
+	if (cpu->ffbgmIrq) {
+		cpu->ffbgmIrq(cpu, returnPc);
+	}
 }
 
 static void _SM83InstructionIRQ(struct SM83Core* cpu) {
@@ -116,6 +120,9 @@ static void _SM83Step(struct SM83Core* cpu) {
 			break;
 		}
 		cpu->bus = cpu->memory.cpuLoad8(cpu, cpu->pc);
+		if (cpu->ffbgmFetch) {
+			cpu->ffbgmFetch(cpu, cpu->bus);
+		}
 		cpu->instruction = _sm83InstructionTable[cpu->bus];
 		++cpu->pc;
 		break;

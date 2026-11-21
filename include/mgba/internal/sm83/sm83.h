@@ -152,6 +152,12 @@ struct SM83Core {
 
 	size_t numComponents;
 	struct mCPUComponent** components;
+
+	// ff-bgm1x: sound driver tracing (NULL = off)
+	void* ffbgmCtx;
+	void (*ffbgmFetch)(struct SM83Core* cpu, uint8_t opcode);
+	void (*ffbgmIrq)(struct SM83Core* cpu, uint16_t returnPc);
+	void (*ffbgmStore)(struct SM83Core* cpu, uint16_t address, uint8_t value);
 };
 #undef SM83_REGISTER_FILE
 
